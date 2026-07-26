@@ -1,65 +1,102 @@
-import Image from "next/image";
+import Link from 'next/link';
+import GenreFilter from './components/GenreFilter';
 
-export default function Home() {
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ genre?: string }> }) {
+  const resolvedSearchParams = await searchParams;
+  const selectedGenreId = resolvedSearchParams?.genre;
+
+  const TMDB_KEY = process.env.TMDB_API_KEY;
+
+  // 1. Fetch Genres LIVE from TMDB
+  const genreRes = await fetch(`https://api.themoviedb.org/3/genre/movie/list?api_key=${TMDB_KEY}`);
+  const genreData = await genreRes.json();
+  
+  // Format them for our GenreFilter component
+  const genres = (genreData.genres || []).map((g: any) => ({
+    id: g.id.toString(),
+    genre_name: g.name
+  }));
+
+  // 2. Fetch Titles LIVE from TMDB based on the filter
+  // Default to global trending if no genre is selected
+  let fetchUrl = `https://api.themoviedb.org/3/trending/all/day?api_key=${TMDB_KEY}`;
+  
+  if (selectedGenreId) {
+    // If they click a genre, discover the best/most popular of all time in that genre
+    fetchUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_KEY}&with_genres=${selectedGenreId}&sort_by=popularity.desc&vote_count.gte=1000`;
+  }
+
+  const titlesRes = await fetch(fetchUrl);
+  const titlesData = await titlesRes.json();
+  const liveTitles = titlesData.results || [];
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="max-w-7xl mx-auto py-8">
+      <div className="flex flex-col gap-2 mb-6">
+        <h1 className="text-3xl font-extrabold tracking-tight md:text-4xl">
+          Live Discoveries
+        </h1>
+        <p className="text-zinc-400 text-sm md:text-base">
+          Fetching the absolute best global content in real-time.
+        </p>
+      </div>
+
+      <GenreFilter genres={genres} />
+
+      {liveTitles.length === 0 ? (
+        <div className="text-center py-12 text-zinc-500">
+          No titles found for this genre.
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+          {liveTitles.map((title: any) => {
+            // TMDB uses 'name' for TV shows and 'title' for movies
+            const displayTitle = title.title || title.name;
+            const releaseDate = title.release_date || title.first_air_date;
+            const format = title.media_type === 'tv' ? 'SERIES' : 'MOVIE';
+            const linkType = title.media_type === 'tv' ? 'tv' : 'movie';
+
+            return (
+              <Link 
+                href={`/title/${title.id}?type=${linkType}`}
+                key={title.id} 
+                className="group relative flex flex-col bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden hover:scale-105 hover:border-zinc-700 transition-all duration-300 shadow-lg cursor-pointer"
+              >
+                <div className="relative aspect-[2/3] w-full bg-zinc-800">
+                  {title.poster_path ? (
+                    <img
+                      src={`https://image.tmdb.org/t/p/w500${title.poster_path}`}
+                      alt={displayTitle}
+                      className="object-cover w-full h-full group-hover:opacity-80 transition-opacity"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-xs text-zinc-500">
+                      No Poster
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-3 flex flex-col justify-between flex-grow bg-gradient-to-t from-zinc-950 to-zinc-900">
+                  <h2 className="font-semibold text-sm line-clamp-1 group-hover:text-amber-400 transition-colors">
+                    {displayTitle}
+                  </h2>
+                  <div className="flex items-center justify-between mt-1.5 text-[11px] text-zinc-400">
+                    <span>
+                      {releaseDate ? new Date(releaseDate).getFullYear() : 'N/A'}
+                    </span>
+                    <span className={`px-1.5 py-0.5 rounded uppercase font-bold text-[9px] tracking-wide ${
+                      format === 'MOVIE' ? 'bg-indigo-900/80 text-indigo-300' : 'bg-emerald-900/80 text-emerald-300'
+                    }`}>
+                      {format}
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
         </div>
-      </main>
+      )}
     </div>
   );
 }

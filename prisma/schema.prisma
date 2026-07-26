@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+enum Format {
+  MOVIE
+  SERIES
+  SOAP
+  DRAMA
+}
+
+model Title {
+  id           String         @id @default(uuid())
+  title_name   String
+  synopsis     String?
+  format       Format
+  release_date DateTime?
+  trailer_url  String?
+  poster_url   String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  origins      TitleOrigin[]
+  genres       TitleGenre[]
+}
+
+model Origin {
+  id          String         @id @default(uuid())
+  region_name String         @unique
+  titles      TitleOrigin[]
+}
+
+model Genre {
+  id         String       @id @default(uuid())
+  genre_name String       @unique
+  titles     TitleGenre[]
+}
+
+model TitleOrigin {
+  title_id  String
+  origin_id String
+  title     Title  @relation(fields: [title_id], references: [id], onDelete: Cascade)
+  origin    Origin @relation(fields: [origin_id], references: [id], onDelete: Cascade)
+
+  @@id([title_id, origin_id])
+}
+
+model TitleGenre {
+  title_id  String
+  genre_id  String
+  title     Title  @relation(fields: [title_id], references: [id], onDelete: Cascade)
+  genre     Genre  @relation(fields: [genre_id], references: [id], onDelete: Cascade)
+
+  @@id([title_id, genre_id])
+}
+
+model Watchlist {
+  id         String   @id @default(uuid())
+  user_id    String   // This will hold the secure Supabase User ID
+  media_id   String   // This will hold EITHER the TMDB ID or your local Drama ID
+  media_type String   // 'movie', 'tv', or 'drama'
+  
+  // We save the title and poster locally so your Watchlist page loads instantly 
+  // without having to make 50 separate API calls to TMDB!
+  title      String
+  poster_url String?  
+  
+  created_at DateTime @default(now())
+
+  // This ensures a user can only add a specific show to their list once
+  @@unique([user_id, media_id]) 
+}
